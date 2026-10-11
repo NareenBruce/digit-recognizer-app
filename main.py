@@ -14,7 +14,7 @@ app = FastAPI(title="Digit Recognition API")
 # PRECAUTION: This allows your frontend (which will run on a different port/domain) to talk to this backend.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, change "*" to your actual frontend domain
+    allow_origins=["https://digit-recognizer-web-blond.vercel.app/"],  # In production, change "*" to your actual frontend domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
