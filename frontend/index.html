@@ -3,69 +3,154 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Digit Recognizer</title>
+    <title>AI Digit Recognizer</title>
     <style>
+      /* Modern UI Color Palette */
+      :root {
+        --primary: #4f46e5;
+        --primary-hover: #4338ca;
+        --danger: #ef4444;
+        --danger-hover: #dc2626;
+        --bg: #f3f4f6;
+        --card-bg: #ffffff;
+        --text-main: #1f2937;
+        --text-muted: #6b7280;
+      }
+
       body {
-        font-family: Arial, sans-serif;
+        font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         display: flex;
         flex-direction: column;
         align-items: center;
-        background-color: #f4f4f9;
-        margin-top: 50px;
+        background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+        margin: 0;
+        padding: 20px;
+        min-height: 100vh;
+        color: var(--text-main);
       }
+
+      .container {
+        background-color: var(--card-bg);
+        padding: 30px;
+        border-radius: 16px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+        text-align: center;
+        max-width: 400px;
+        width: 100%;
+        margin-top: 40px;
+      }
+
+      h1 {
+        margin-top: 0;
+        margin-bottom: 5px;
+        font-size: 26px;
+      }
+
+      p.instruction {
+        color: var(--text-muted);
+        font-size: 15px;
+        margin-bottom: 25px;
+        font-weight: 500;
+      }
+
       #canvas-container {
-        border: 2px solid #333;
-        border-radius: 8px;
+        border: 3px dashed #cbd5e1;
+        border-radius: 12px;
         overflow: hidden;
-        background-color: white; /* Fallback */
-        margin-bottom: 20px;
+        background-color: white;
+        margin: 0 auto 25px auto;
+        width: 280px;
+        height: 280px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
       }
+
       canvas {
         display: block;
         cursor: crosshair;
+        /* CRUCIAL FOR MOBILE: Stops the page from scrolling when drawing */
+        touch-action: none;
       }
+
       .controls {
         display: flex;
-        gap: 15px;
-        margin-bottom: 20px;
+        gap: 12px;
+        justify-content: center;
+        margin-bottom: 25px;
       }
+
       button {
-        padding: 10px 20px;
-        font-size: 16px;
+        padding: 12px 24px;
+        font-size: 15px;
+        font-weight: 600;
         cursor: pointer;
         border: none;
-        border-radius: 5px;
+        border-radius: 8px;
         color: white;
+        transition: all 0.2s ease;
+        flex: 1;
       }
-      #predict-btn {
-        background-color: #28a745;
-      }
+
       #clear-btn {
-        background-color: #dc3545;
+        background-color: var(--danger);
       }
+      #clear-btn:hover {
+        background-color: var(--danger-hover);
+      }
+
+      #predict-btn {
+        background-color: var(--primary);
+        box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2);
+      }
+      #predict-btn:hover {
+        background-color: var(--primary-hover);
+        transform: translateY(-2px);
+      }
+
       #result-box {
-        font-size: 24px;
+        font-size: 22px;
         font-weight: bold;
-        color: #333;
+        color: var(--text-main);
+        background: var(--bg);
+        padding: 15px;
+        border-radius: 8px;
+      }
+
+      #result-box span#prediction-text {
+        color: var(--primary);
+        font-size: 24px;
+      }
+
+      .confidence {
+        display: block;
+        font-size: 14px;
+        color: var(--text-muted);
+        margin-top: 8px;
+        font-weight: normal;
       }
     </style>
   </head>
   <body>
-    <h1>Draw a Number (0-9)</h1>
+    <div class="container">
+      <h1>Draw a Number</h1>
+      <p class="instruction">Please draw a single digit from 0 to 9.</p>
 
-    <div id="canvas-container">
-      <!-- 280x280 is a good size for users, keeps the 1:1 aspect ratio for the 28x28 backend resize -->
-      <canvas id="drawCanvas" width="280" height="280"></canvas>
-    </div>
+      <div id="canvas-container">
+        <canvas id="drawCanvas" width="280" height="280"></canvas>
+      </div>
 
-    <div class="controls">
-      <button id="clear-btn">Clear Canvas</button>
-      <button id="predict-btn">Predict</button>
-    </div>
+      <div class="controls">
+        <button id="clear-btn">Clear Canvas</button>
+        <button id="predict-btn">Predict</button>
+      </div>
 
-    <div id="result-box">
-      Prediction: <span id="prediction-text">-</span> (Confidence:
-      <span id="confidence-text">-</span>)
+      <div id="result-box">
+        The number is: <span id="prediction-text">-</span>
+        <span class="confidence"
+          >Confidence: <span id="confidence-text">-</span></span
+        >
+      </div>
     </div>
 
     <script>
@@ -73,72 +158,98 @@
       const ctx = canvas.getContext("2d");
       let isDrawing = false;
 
-      // PRECAUTION: Fill canvas with white initially
       function initializeCanvas() {
         ctx.fillStyle = "white";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        // Set drawing properties: black ink, smooth lines
-        ctx.strokeStyle = "black";
-        ctx.lineWidth = 15;
+        ctx.strokeStyle = "#111827";
+        ctx.lineWidth = 18; // Slightly thicker ink looks better on mobile
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
       }
 
       initializeCanvas();
 
-      // Drawing Event Listeners (Mouse)
-      canvas.addEventListener("mousedown", (e) => {
-        isDrawing = true;
-        ctx.beginPath();
-        ctx.moveTo(e.offsetX, e.offsetY);
-      });
-
-      canvas.addEventListener("mousemove", (e) => {
-        if (isDrawing) {
-          ctx.lineTo(e.offsetX, e.offsetY);
-          ctx.stroke();
+      // Standardizes coordinates for both Mouse (laptop) and Touch (mobile)
+      function getCoordinates(e) {
+        const rect = canvas.getBoundingClientRect();
+        if (e.touches && e.touches.length > 0) {
+          return {
+            x: e.touches[0].clientX - rect.left,
+            y: e.touches[0].clientY - rect.top,
+          };
+        } else {
+          return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
+          };
         }
-      });
+      }
 
-      canvas.addEventListener("mouseup", () => {
+      // Start Drawing
+      const startDrawing = (e) => {
+        isDrawing = true;
+        const { x, y } = getCoordinates(e);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        e.preventDefault();
+      };
+
+      // Draw Line
+      const draw = (e) => {
+        if (!isDrawing) return;
+        const { x, y } = getCoordinates(e);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        e.preventDefault();
+      };
+
+      // Stop Drawing
+      const stopDrawing = () => {
         isDrawing = false;
-      });
+      };
 
-      canvas.addEventListener("mouseleave", () => {
-        isDrawing = false;
-      });
+      // Mouse Events (Laptop)
+      canvas.addEventListener("mousedown", startDrawing);
+      canvas.addEventListener("mousemove", draw);
+      canvas.addEventListener("mouseup", stopDrawing);
+      canvas.addEventListener("mouseleave", stopDrawing);
 
-      // Clear Button Logic
+      // Touch Events (Mobile) - passive: false allows preventDefault() to work
+      canvas.addEventListener("touchstart", startDrawing, { passive: false });
+      canvas.addEventListener("touchmove", draw, { passive: false });
+      canvas.addEventListener("touchend", stopDrawing);
+      canvas.addEventListener("touchcancel", stopDrawing);
+
+      // Clear Canvas Logic
       document.getElementById("clear-btn").addEventListener("click", () => {
         initializeCanvas();
         document.getElementById("prediction-text").innerText = "-";
         document.getElementById("confidence-text").innerText = "-";
       });
 
-      // Predict Button Logic (The bridge to your backend)
+      // Prediction Logic
       document
         .getElementById("predict-btn")
         .addEventListener("click", async () => {
-          // 1. Grab image from canvas
           const base64Image = canvas.toDataURL("image/png");
-
           document.getElementById("prediction-text").innerText = "Thinking...";
+          document.getElementById("confidence-text").innerText = "-";
 
           try {
-            // 2. Send POST request to FastAPI backend
-            const response = await fetch("http://127.0.0.1:8000/predict", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
+            // IMPORTANT: Replace this with your actual Render URL
+            const response = await fetch(
+              "https://YOUR-RENDER-URL.onrender.com/predict",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ image_base64: base64Image }),
               },
-              body: JSON.stringify({ image_base64: base64Image }),
-            });
+            );
 
             if (!response.ok) throw new Error("Backend error");
 
             const result = await response.json();
 
-            // 3. Update UI
             document.getElementById("prediction-text").innerText = result.digit;
             document.getElementById("confidence-text").innerText =
               (result.confidence * 100).toFixed(2) + "%";
