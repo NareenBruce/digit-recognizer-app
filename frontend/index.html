@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Digit Recognizer</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background-color: #f4f4f9;
+        margin-top: 50px;
+      }
+      #canvas-container {
+        border: 2px solid #333;
+        border-radius: 8px;
+        overflow: hidden;
+        background-color: white; /* Fallback */
+        margin-bottom: 20px;
+      }
+      canvas {
+        display: block;
+        cursor: crosshair;
+      }
+      .controls {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 20px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+        border: none;
+        border-radius: 5px;
+        color: white;
+      }
+      #predict-btn {
+        background-color: #28a745;
+      }
+      #clear-btn {
+        background-color: #dc3545;
+      }
+      #result-box {
+        font-size: 24px;
+        font-weight: bold;
+        color: #333;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Draw a Number (0-9)</h1>
+
+    <div id="canvas-container">
+      <!-- 280x280 is a good size for users, keeps the 1:1 aspect ratio for the 28x28 backend resize -->
+      <canvas id="drawCanvas" width="280" height="280"></canvas>
+    </div>
+
+    <div class="controls">
+      <button id="clear-btn">Clear Canvas</button>
+      <button id="predict-btn">Predict</button>
+    </div>
+
+    <div id="result-box">
+      Prediction: <span id="prediction-text">-</span> (Confidence:
+      <span id="confidence-text">-</span>)
+    </div>
+
+    <script>
+      const canvas = document.getElementById("drawCanvas");
+      const ctx = canvas.getContext("2d");
+      let isDrawing = false;
+
+      // PRECAUTION: Fill canvas with white initially
+      function initializeCanvas() {
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Set drawing properties: black ink, smooth lines
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 15;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+      }
+
+      initializeCanvas();
+
+      // Drawing Event Listeners (Mouse)
+      canvas.addEventListener("mousedown", (e) => {
+        isDrawing = true;
+        ctx.beginPath();
+        ctx.moveTo(e.offsetX, e.offsetY);
+      });
+
+      canvas.addEventListener("mousemove", (e) => {
+        if (isDrawing) {
+          ctx.lineTo(e.offsetX, e.offsetY);
+          ctx.stroke();
+        }
+      });
+
+      canvas.addEventListener("mouseup", () => {
+        isDrawing = false;
+      });
+
+      canvas.addEventListener("mouseleave", () => {
+        isDrawing = false;
+      });
+
+      // Clear Button Logic
+      document.getElementById("clear-btn").addEventListener("click", () => {
+        initializeCanvas();
+        document.getElementById("prediction-text").innerText = "-";
+        document.getElementById("confidence-text").innerText = "-";
+      });
+
+      // Predict Button Logic (The bridge to your backend)
+      document
+        .getElementById("predict-btn")
+        .addEventListener("click", async () => {
+          // 1. Grab image from canvas
+          const base64Image = canvas.toDataURL("image/png");
+
+          document.getElementById("prediction-text").innerText = "Thinking...";
+
+          try {
+            // 2. Send POST request to FastAPI backend
+            const response = await fetch("http://127.0.0.1:8000/predict", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ image_base64: base64Image }),
+            });
+
+            if (!response.ok) throw new Error("Backend error");
+
+            const result = await response.json();
+
+            // 3. Update UI
+            document.getElementById("prediction-text").innerText = result.digit;
+            document.getElementById("confidence-text").innerText =
+              (result.confidence * 100).toFixed(2) + "%";
+          } catch (error) {
+            console.error("Error:", error);
+            document.getElementById("prediction-text").innerText =
+              "Error connecting to API";
+          }
+        });
+    </script>
+  </body>
+</html>
